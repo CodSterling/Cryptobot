@@ -161,6 +161,7 @@ def execute_buy(token_id, price):
 def relist_nft(token_id, resale_price, contract_address):
     """
     Relist an NFT for sale on OpenSea.
+    Logs details about the relist attempt.
     Args:
         token_id (int): Token ID of the NFT.
         resale_price (float): Desired resale price in ETH.
@@ -182,10 +183,10 @@ def relist_nft(token_id, resale_price, contract_address):
         json=sell_order_payload
     )
     if response.status_code == 200:
-        logging.info(f"Successfully relisted token_id {token_id} for {resale_price} ETH.")
+        logging.info(f"Relisted NFT: Token ID {token_id}, Price {resale_price} ETH, Contract {contract_address}")
         return response.json()
     else:
-        logging.error(f"Failed to relist token_id {token_id}. Status code: {response.status_code}")
+        logging.error(f"Failed to relist NFT: Token ID {token_id}, Price {resale_price} ETH, Contract {contract_address}. Status code: {response.status_code}, Response: {response.text}")
         return response.text
 
 def monitor_and_trade():
@@ -216,9 +217,10 @@ def monitor_and_trade():
                     top_nft = profitable_nfts.iloc[0]
                     tx_hash = execute_buy(top_nft['token_id'], top_nft['floor_price'])
                     if tx_hash != "Exceeds spending limit":
+                        logging.info(f"Purchased NFT: Token ID {top_nft['token_id']}, Price {top_nft['floor_price']} ETH")
                         # Relist the NFT for a profit
                         resale_price = top_nft['potential_profit']
-                        relist_nft(top_nft['token_id'], resale_price, top_nft['contract_address'])
+                        relist_response = relist_nft(top_nft['token_id'], resale_price, top_nft['contract_address'])
 
             logging.info("Monitoring cycle complete. Waiting for the next interval...")
             time.sleep(60)  # Wait for 1 minute before the next cycle
