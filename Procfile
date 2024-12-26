@@ -1,1 +1,1 @@
-worker: python testnet2.py
+worker: python troubleshoot.py
