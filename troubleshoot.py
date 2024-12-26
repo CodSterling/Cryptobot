@@ -23,10 +23,10 @@ if not wallet_address or not Web3.is_address(wallet_address):
 if not OPENSEA_API_KEY or not INFURA_PROJECT_ID or not private_key:
     raise ValueError("Missing one or more required environment variables: OPENSEA_API_KEY, INFURA_PROJECT_ID, PRIVATE_KEY")
 
-# Headers for API requests
 HEADERS = {
-    "Authorization": f"Bearer {OPENSEA_API_KEY}"
+    "X-API-KEY": OPENSEA_API_KEY
 }
+
 
 # Cache for fetched data
 CACHE = {}
