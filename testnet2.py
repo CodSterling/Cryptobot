@@ -17,7 +17,7 @@ INFURA_PROJECT_ID = os.environ.get("INFURA_PROJECT_ID")
 wallet_address = os.environ.get("WALLET_ADDRESS")
 private_key = os.environ.get("PRIVATE_KEY")
 
-if not wallet_address or not Web3.isAddress(wallet_address):
+if not wallet_address or not Web3.is_address(wallet_address):
     raise ValueError("Invalid or missing WALLET_ADDRESS environment variable.")
 
 if not OPENSEA_API_KEY or not INFURA_PROJECT_ID or not private_key:
