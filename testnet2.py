@@ -67,7 +67,7 @@ def fetch_trending_nfts():
     logging.info(f"Wallet balance: {wallet_balance} ETH, spending limit: {max_spending_limit} ETH.")
 
     # Fetch data from API
-    url = "https://api.opensea.io/api/v1/assets"
+    url = "https://api.opensea.io/api/v2/assets"
     params = {
         "order_direction": "desc",
         "offset": 0,
