@@ -33,7 +33,7 @@ CACHE = {}
 CACHE_EXPIRATION = timedelta(minutes=10)  # Cache TTL
 
 # Ethereum setup
-w3 = Web3(Web3.HTTPProvider(f"https://goerli.infura.io/v3/{INFURA_PROJECT_ID}"))
+w3 = Web3(Web3.HTTPProvider(f"https://sepolia.infura.io/v3/{INFURA_PROJECT_ID}"))
 RATE_LIMIT_DELAY = 1  # Delay between API calls (in seconds)
 
 PROFIT_THRESHOLD = 0.2  # Minimum profit margin (20%)
