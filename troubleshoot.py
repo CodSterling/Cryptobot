@@ -240,7 +240,7 @@ def monitor_and_trade():
                             logging.error(f"Failed to relist NFT with Token ID {top_nft['token_id']}")
 
             logging.info("Monitoring cycle complete. Waiting for the next interval...")
-            time.sleep(60)  # Wait for 1 minute before the next cycle
+            time.sleep(900)  # Wait for 1 minute before the next cycle
     except KeyboardInterrupt:
         logging.info("Bot stopped by user.")
     except Exception as e:
