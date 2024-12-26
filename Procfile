@@ -1,1 +1,1 @@
-worker: python testnet.py
+worker: python testnet2.py
