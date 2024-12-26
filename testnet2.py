@@ -139,7 +139,8 @@ def get_wallet_balance():
         float: Wallet balance in ETH.
     """
     balance = w3.eth.get_balance(wallet_address)
-    return Web3.fromWei(balance, 'ether')
+    return balance / 10**18
+
 
 def execute_buy(token_id, price):
     """
