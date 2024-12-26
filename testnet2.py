@@ -5,12 +5,25 @@ import logging
 import time
 from web3 import Web3
 import os
+import signal
+import sys
 
 # Logging setup
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# Environment variable setup
+OPENSEA_API_KEY = os.environ.get("OPENSEA_API_KEY")
+INFURA_PROJECT_ID = os.environ.get("INFURA_PROJECT_ID")
+wallet_address = os.environ.get("WALLET_ADDRESS")
+private_key = os.environ.get("PRIVATE_KEY")
+
+if not wallet_address or not Web3.isAddress(wallet_address):
+    raise ValueError("Invalid or missing WALLET_ADDRESS environment variable.")
+
+if not OPENSEA_API_KEY or not INFURA_PROJECT_ID or not private_key:
+    raise ValueError("Missing one or more required environment variables: OPENSEA_API_KEY, INFURA_PROJECT_ID, PRIVATE_KEY")
+
 # Headers for API requests
-OPENSEA_API_KEY = os.environ.get("f239fdf5f14849c19d202d49b5716f5d")
 HEADERS = {
     "Authorization": f"Bearer {OPENSEA_API_KEY}"
 }
@@ -20,14 +33,19 @@ CACHE = {}
 CACHE_EXPIRATION = timedelta(minutes=10)  # Cache TTL
 
 # Ethereum setup
-INFURA_PROJECT_ID = os.environ.get("eb4cb697e8cd4a24844c0512b6acacca")
 w3 = Web3(Web3.HTTPProvider(f"https://goerli.infura.io/v3/{INFURA_PROJECT_ID}"))
-wallet_address = os.environ.get("0x745461ae3ee10F26e314735b6AF8ee41cD313E2d")
-private_key = os.environ.get("6f1ab0cab66a32ab2c83a7df59dd3ae2a4bf36f254341d2ab25aa29430a43f1f")
 RATE_LIMIT_DELAY = 1  # Delay between API calls (in seconds)
 
 PROFIT_THRESHOLD = 0.2  # Minimum profit margin (20%)
 SPENDING_LIMIT_PERCENTAGE = 0.25  # Maximum percentage of wallet balance to spend
+
+# Graceful exit setup
+def graceful_exit(signum, frame):
+    logging.info("Exiting gracefully...")
+    sys.exit(0)
+
+signal.signal(signal.SIGTERM, graceful_exit)
+signal.signal(signal.SIGINT, graceful_exit)
 
 def fetch_trending_nfts():
     """
@@ -114,7 +132,6 @@ def calculate_profitability(df):
     df['potential_profit'] = df['floor_price'] * (1 + PROFIT_THRESHOLD)  # Hypothetical resale price (20% increase)
     df['profit_margin'] = df['potential_profit'] - df['floor_price']
     return df
-
 def get_wallet_balance():
     """
     Fetch the current wallet balance.
@@ -133,26 +150,35 @@ def execute_buy(token_id, price):
     Returns:
         str: Transaction hash or error message.
     """
-    wallet_balance = w3.eth.get_balance(wallet_address)
-    price_in_wei = Web3.toWei(price, 'ether')
-    spending_limit = wallet_balance * SPENDING_LIMIT_PERCENTAGE
+    try:
+        wallet_balance = w3.eth.get_balance(wallet_address)
+        price_in_wei = Web3.toWei(price, 'ether')
+        spending_limit = wallet_balance * SPENDING_LIMIT_PERCENTAGE
 
-    if price_in_wei > spending_limit:
-        logging.error(f"Price {price} ETH exceeds spending limit of {Web3.fromWei(spending_limit, 'ether')} ETH.")
-        return "Exceeds spending limit"
+        if price_in_wei > spending_limit:
+            logging.error(f"Price {price} ETH exceeds spending limit of {Web3.fromWei(spending_limit, 'ether')} ETH.")
+            return "Exceeds spending limit"
 
-    transaction = {
-        'from': wallet_address,
-        'value': price_in_wei,
-        'gas': 200000,
-        'gasPrice': w3.toWei('50', 'gwei'),
-        'nonce': w3.eth.getTransactionCount(wallet_address)
-    }
-    signed_tx = w3.eth.account.sign_transaction(transaction, private_key=private_key)
-    tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
-    logging.info(f"Executed buy for token_id {token_id}, tx_hash: {tx_hash.hex()}.")
-    logging.info(f"Updated wallet balance: {get_wallet_balance()} ETH.")
-    return tx_hash.hex()
+        transaction = {
+            'from': wallet_address,
+            'value': price_in_wei,
+            'gas': 200000,
+            'gasPrice': w3.toWei('50', 'gwei'),
+            'nonce': w3.eth.getTransactionCount(wallet_address)
+        }
+
+        gas_estimate = w3.eth.estimateGas(transaction)
+        transaction['gas'] = gas_estimate
+
+        signed_tx = w3.eth.account.sign_transaction(transaction, private_key=private_key)
+        tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        logging.info(f"Executed buy for token_id {token_id}, tx_hash: {tx_hash.hex()}.")
+        logging.info(f"Updated wallet balance: {get_wallet_balance()} ETH.")
+        return tx_hash.hex()
+
+    except Exception as e:
+        logging.error(f"Failed to execute transaction: {e}")
+        return str(e)
 
 def relist_nft(token_id, resale_price, contract_address):
     """
@@ -173,17 +199,21 @@ def relist_nft(token_id, resale_price, contract_address):
         "start_amount": resale_price,
         "expiration_time": int(time.time()) + 86400  # 24-hour listing
     }
-    response = requests.post(
-        "https://testnets-api.opensea.io/v2/orders/post",
-        headers=HEADERS,
-        json=sell_order_payload
-    )
-    if response.status_code == 200:
-        logging.info(f"Relisted NFT: Token ID {token_id}, Price {resale_price} ETH, Contract {contract_address}")
-        return response.json()
-    else:
-        logging.error(f"Failed to relist NFT: Token ID {token_id}, Price {resale_price} ETH, Contract {contract_address}. Status code: {response.status_code}, Response: {response.text}")
-        return response.text
+    try:
+        response = requests.post(
+            "https://testnets-api.opensea.io/v2/orders/post",
+            headers=HEADERS,
+            json=sell_order_payload
+        )
+        if response.status_code == 200:
+            logging.info(f"Relisted NFT: Token ID {token_id}, Price {resale_price} ETH, Contract {contract_address}")
+            return response.json()
+        else:
+            logging.error(f"Failed to relist NFT: Token ID {token_id}, Price {resale_price} ETH, Contract {contract_address}. Status code: {response.status_code}, Response: {response.text}")
+            return response.text
+    except Exception as e:
+        logging.error(f"Error during relist attempt: {e}")
+        return
 
 def monitor_and_trade():
     """
@@ -213,15 +243,26 @@ def monitor_and_trade():
                     top_nft = profitable_nfts.iloc[0]
                     tx_hash = execute_buy(top_nft['token_id'], top_nft['floor_price'])
                     if tx_hash != "Exceeds spending limit":
-                        logging.info(f"Purchased NFT: Token ID {top_nft['token_id']}, Price {top_nft['floor_price']} ETH")
+                        logging.info(
+                            f"Purchased NFT: Token ID {top_nft['token_id']}, Price {top_nft['floor_price']} ETH")
                         # Relist the NFT for a profit
                         resale_price = top_nft['potential_profit']
                         relist_response = relist_nft(top_nft['token_id'], resale_price, top_nft['contract_address'])
+                        if relist_response:
+                            logging.info(f"Successfully relisted NFT: {relist_response}")
+                        else:
+                            logging.error(f"Failed to relist NFT with Token ID {top_nft['token_id']}")
 
             logging.info("Monitoring cycle complete. Waiting for the next interval...")
             time.sleep(60)  # Wait for 1 minute before the next cycle
     except KeyboardInterrupt:
         logging.info("Bot stopped by user.")
+    except Exception as e:
+        logging.error(f"Unexpected error occurred: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     monitor_and_trade()
+
+
+
